@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import axios from 'axios';
 
 export const hasher = (() => {
     let password;
@@ -62,4 +63,46 @@ export const cyrb53 = function(str, seed = 0) {
     h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
     h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
     return 4294967296 * (2097151 & h2) + (h1>>>0);
+};
+
+export const fetchCFTurnCredentials = async () => {
+    try {
+        const TURN_TOKEN_ID = process.env.CF_TURN_TOKEN_ID;
+        const TURN_API_TOKEN = process.env.CF_TURN_API_TOKEN;
+
+        if (!TURN_TOKEN_ID || !TURN_API_TOKEN) {
+            throw new Error('CF_TURN_TOKEN_ID and CF_TURN_API_TOKEN must be provided in the environment variables.');
+        }
+
+        const response = await axios.post(
+            `https://rtc.live.cloudflare.com/v1/turn/keys/${TURN_TOKEN_ID}/credentials/generate`,
+            { ttl: 31536000 }, // Time to live in seconds for the credentials
+            {
+                headers: {
+                    "Authorization": `Bearer ${TURN_API_TOKEN}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        console.log("TURN credentials fetched successfully: ", response.data);
+
+        return {
+            "sdpSemantics": "unified-plan",
+            "iceServers": [
+                {
+                    "urls": "stun:stun.cloudflare.com:3478"
+                },
+                {
+                    "urls": "turns:turn.cloudflare.com:5349?transport=tcp",
+                    "username": response.data.iceServers.username,
+                    "credential": response.data.iceServers.credential
+                }
+            ]
+        };
+
+    } catch (error) {
+        console.error("Error fetching TURN credentials:", error);
+        process.exit(1); // Exit if we can't fetch TURN credentials
+    }
 };

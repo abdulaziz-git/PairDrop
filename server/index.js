@@ -4,6 +4,8 @@ import fs from "fs";
 import PairDropServer from "./server.js";
 import PairDropWsServer from "./ws-server.js";
 
+import {fetchCFTurnCredentials} from "./helper.js";
+
 // Handle SIGINT
 process.on('SIGINT', () => {
     console.info("SIGINT Received, exiting...")
@@ -39,17 +41,22 @@ conf.port = process.env.PORT || 3000;
 
 conf.wsFallback = process.argv.includes('--include-ws-fallback') || process.env.WS_FALLBACK === "true";
 
-conf.rtcConfig = process.env.RTC_CONFIG && process.env.RTC_CONFIG !== "false"
-    ? JSON.parse(fs.readFileSync(process.env.RTC_CONFIG, 'utf8'))
-    : {
-        "sdpSemantics": "unified-plan",
-        "iceServers": [
-            {
-                "urls": "stun:stun.l.google.com:19302"
-            }
-        ]
-    };
+conf.cfTurn = process.env.CF_TURN === "true";
 
+if (conf.cfTurn) {
+    conf.rtcConfig = await fetchCFTurnCredentials();
+} else {
+    conf.rtcConfig = process.env.RTC_CONFIG && process.env.RTC_CONFIG !== "false"
+        ? JSON.parse(fs.readFileSync(process.env.RTC_CONFIG, 'utf8'))
+        : {
+            "sdpSemantics": "unified-plan",
+            "iceServers": [
+                {
+                    "urls": "stun:stun.l.google.com:19302"
+                }
+            ]
+        };
+}
 
 conf.signalingServer = process.env.SIGNALING_SERVER && process.env.SIGNALING_SERVER !== "false"
     ? process.env.SIGNALING_SERVER
